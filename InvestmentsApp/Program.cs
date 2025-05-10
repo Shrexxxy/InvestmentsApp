@@ -9,6 +9,11 @@ builder.Services.AddMudServices();
 
 builder.Services.AddHttpClient();
 
+builder.Services.AddHttpClient("InvestmentBackendConfig",x =>
+{
+    x.BaseAddress = new Uri("http://localhost:5555");
+});
+
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveWebAssemblyComponents();

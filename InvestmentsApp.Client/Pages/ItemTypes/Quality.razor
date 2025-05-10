@@ -82,13 +82,13 @@
     {
         _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
         
-        await FetchQualityes();
+        await FetchQualities();
         
         StateHasChanged();        
         
     }
     
-    private async Task FetchQualityes()
+    private async Task FetchQualities()
     {
         var typesResposne = await _httpClient.GetAsync($"/api/quality/by-type-id/{ItemTypeId}");
 
@@ -132,7 +132,7 @@
         
         Snackbar.Add($"Качество '{_newQuality}' добавлено успешно!");
         _newQuality = string.Empty;
-        await FetchQualityes();
+        await FetchQualities();
         StateHasChanged();
     }
 
@@ -173,7 +173,7 @@
         }
         
         Snackbar.Add($"{quality.Name} удален успешно!");
-        await FetchQualityes();
+        await FetchQualities();
         StateHasChanged();
     }
     

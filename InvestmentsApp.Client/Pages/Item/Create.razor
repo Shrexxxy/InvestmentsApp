@@ -1,0 +1,160 @@
+@page "/Items/Create"
+@using InvestmentsApp.Client.Models
+@using InvestmentsApp.Client.Models.Item
+@using InvestmentsApp.Client.Models.PagedList
+@using InvestmentsApp.Client.Models.Quality
+
+<MudElement 
+    Class="m-5 d-flex align-content-center align-items-center justify-content-center">
+    <MudPaper Class="w-50">
+    <MudForm>
+        <MudTextField
+            Label="Введите название предмета"
+            Class="m-3"
+            @bind-Value="_itemCreateModel.Name">
+        </MudTextField>
+    
+        <MudSelect
+            Class="m-3"
+            T="Guid"
+            Immediate
+            ValueChanged="HandleChangeSelectedItemType"
+            Label="Выберите тип предмета">
+            @foreach (var itemType in _itemTypeList)
+            {
+                <MudSelectItem
+                    T="Guid"
+                    Value="itemType.Id">
+                    @itemType.Name
+                </MudSelectItem>
+            }
+        </MudSelect>
+        
+        <MudSelect
+            Class="m-3"
+            Immediate
+            Disabled="_itemCreateModel.ItemTypeId == Guid.Empty || _qualityList.Count == 0"
+            @bind-Value="_itemCreateModel.QualityId"
+            T="Guid?"
+            Label="Выберите качество предмета">
+            @foreach (var quality in _qualityList)
+            {
+                <MudSelectItem
+                    T="Guid?"
+                    Value="quality.Id">
+                    @quality.Name
+                </MudSelectItem>
+            }
+        </MudSelect>
+        <MudStack Row Justify="Justify.FlexEnd">
+            <MudButton
+                Class="my-2 mx-2"
+                Color="Color.Primary"
+                OnClick="HandleCreate">
+                Добавить
+            </MudButton>
+        </MudStack>
+    </MudForm>
+    </MudPaper>
+</MudElement>
+
+
+@code {
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = null!;
+    [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private IDialogService DialogService { get; set; } = null!;
+    [Inject] public NavigationManager NavigationManager { get; set; } = null!;
+
+    private HttpClient _httpClient = null!;
+    private ItemCreateModel _itemCreateModel = new();
+    private List<ItemTypeViewModel> _itemTypeList = new();
+    private List<QualityViewModel> _qualityList = new ();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
+
+        await FetchItemTypes();
+        
+        StateHasChanged();
+    }
+
+    private async Task FetchItemTypes()
+    {
+        var itemTypesResponse = await _httpClient.GetAsync("/api/item-type/paged");
+        
+        if (!itemTypesResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        var types = await itemTypesResponse.Content.ReadFromJsonAsync<PagedList<ItemTypeViewModel>>();
+        if (types is null)
+        {
+            Snackbar.Add("Ошибка при обработке данных");
+            return;
+        }
+
+        if (types.Subset is null || types.PageSize == 0)
+        {
+            Snackbar.Add("Нет данных");
+            return;
+        }
+
+        _itemTypeList = types.Subset;
+        StateHasChanged();
+    }
+
+    private async Task HandleChangeSelectedItemType(Guid itemTypeId)
+    {
+        _itemCreateModel.ItemTypeId = itemTypeId;
+
+        await FetchQualities(itemTypeId);
+        
+        StateHasChanged();
+    }
+    
+    private async Task FetchQualities(Guid itemTypeId)
+    {
+        var qualityResponse = await _httpClient.GetAsync($"/api/quality/by-type-id/{itemTypeId}");
+
+        if (!qualityResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        var qualities = await qualityResponse.Content.ReadFromJsonAsync<List<QualityViewModel>>();
+        if (qualities is null)
+        {
+            Snackbar.Add("Ошибка при обработке данных");
+            return;
+        }
+
+        if (qualities.Count == 0)
+        {
+            _itemCreateModel.QualityId = null;
+            _qualityList = new();
+            Snackbar.Add("Нет данных");
+            return;
+        }
+
+        _qualityList = qualities;
+    }
+
+    private async Task HandleCreate()
+    {
+        var typesResposne = await _httpClient.PostAsJsonAsync("/api/item/", _itemCreateModel);
+        
+        if (!typesResposne.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        Snackbar.Add($"Тип '{_itemCreateModel.Name}' добавлен успешно!");
+        NavigationManager.NavigateTo("/items");
+    }
+
+}

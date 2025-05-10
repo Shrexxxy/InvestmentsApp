@@ -1,0 +1,106 @@
+@page "/Items"
+@using InvestmentsApp.Client.Models.Item
+@using InvestmentsApp.Client.Models.PagedList
+
+<MudButton
+    Href="/Items/Create">
+    Добавить
+</MudButton>
+
+<MudDataGrid
+    Dense
+    SortMode="SortMode.None"
+    @ref="_dataGrid"
+    ServerData="FetchItems"
+    T="ItemViewModel">
+    <Columns>
+        <PropertyColumn
+            Class="w-25"
+            Title="Id"
+            Editable="false"
+            Property="x => x.Id">
+        </PropertyColumn>
+
+        <PropertyColumn
+            Editable="true"
+            Title="Название"
+            Property="x => x.Name">
+        </PropertyColumn>
+        
+        <PropertyColumn
+            Editable="true"
+            Title="Тип предмета"
+            Property="x => x.ItemType.Name">
+        </PropertyColumn>
+        
+        <PropertyColumn
+            Editable="true"
+            Title="Качество"
+            Property="x => x.Quality!.Name">
+        </PropertyColumn>
+
+        <TemplateColumn>
+            <CellTemplate>
+                <MudStack
+                    Justify="Justify.FlexEnd"
+                    Row>
+                    <MudTooltip Text="Редактировать">
+                        <MudIconButton
+                            OnClick="@context.Actions.StartEditingItemAsync"
+                            Icon="@Icons.Material.Outlined.Edit">
+                        </MudIconButton>
+                    </MudTooltip>
+                </MudStack>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager></MudDataGridPager>
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = null!;
+    [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private IDialogService DialogService { get; set; } = null!;
+
+    private HttpClient _httpClient = null!;
+    private MudDataGrid<ItemViewModel> _dataGrid = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
+        
+        StateHasChanged();
+    }
+
+    private async Task<GridData<ItemViewModel>> FetchItems(GridState<ItemViewModel> state)
+    {
+        var itemsResponse = await _httpClient.GetAsync("/api/item/paged");
+
+        if (!itemsResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return new();
+        }
+
+        var items = await itemsResponse.Content.ReadFromJsonAsync<PagedList<ItemViewModel>>();
+        if (items is null)
+        {
+            Snackbar.Add("Ошибка при обработке данных");
+            return new();
+        }
+
+        if (items.Subset is null || items.PageSize == 0)
+        {
+            Snackbar.Add("Нет данных");
+            return new();
+        }
+
+        return new()
+        {
+            Items = items.Subset,
+            TotalItems = items.PageCount
+        };
+    }
+}
