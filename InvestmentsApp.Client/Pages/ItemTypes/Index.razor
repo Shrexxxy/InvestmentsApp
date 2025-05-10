@@ -1,0 +1,208 @@
+@page "/ItemTypes"
+@using System.Text.Json
+@using InvestmentsApp.Client.Components
+@using InvestmentsApp.Client.Models
+@using InvestmentsApp.Client.Models.ItemTypes
+@using InvestmentsApp.Client.Models.PagedList
+
+<PageTitle>Типы предметов</PageTitle>
+<MudText 
+    Typo="Typo.h5"
+    Class="mt-5"
+    Style="text-align: center;">
+    Типы предметов
+</MudText>
+
+<MudStack Class="my-5" Row>
+    <MudTextField
+        T="string"
+        @bind-Value="@_newType"
+        Label="Введите название"
+        InputType="InputType.Text">
+    </MudTextField>
+    
+    <MudButton
+        OnClick="AddType"
+        StartIcon="@Icons.Material.Outlined.Add">
+        Добавить
+    </MudButton>
+</MudStack>
+
+
+<MudDataGrid
+    ReadOnly="false"
+    EditMode="@DataGridEditMode.Form"
+    EditTrigger="DataGridEditTrigger.Manual"
+    @ref="_dataGrid"
+    ServerData="FetchItemTypes"
+    CommittedItemChanges="@EditType"
+    T="ItemTypeViewModel">
+    <Columns>
+        <PropertyColumn
+            Title="Id"
+            Editable="false"
+            Property="x => x.Id">
+        </PropertyColumn>
+        
+        <PropertyColumn
+            Editable="true"
+            Title="Название"
+            Property="x => x.Name">
+        </PropertyColumn>
+        
+        <TemplateColumn>
+            <CellTemplate>
+                <MudStack
+                    Justify="Justify.FlexEnd"
+                    Row>
+                    <MudTooltip Text="Редактировать">
+                        <MudIconButton
+                            OnClick="@context.Actions.StartEditingItemAsync"
+                            Icon="@Icons.Material.Outlined.Edit">
+                        </MudIconButton>
+                    </MudTooltip>
+
+                    <MudTooltip Text="Удалить">
+                        <MudIconButton
+                            OnClick="() => DeleteType(context.Item!)"
+                            Icon="@Icons.Material.Outlined.Delete">
+                        </MudIconButton>
+                    </MudTooltip>
+
+                </MudStack>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager></MudDataGridPager>
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = null!;
+    [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private IDialogService DialogService { get; set; } = null!;
+
+    private HttpClient _httpClient = null!;
+    private MudDataGrid<ItemTypeViewModel> _dataGrid = new();
+    private string _newType;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
+        
+        StateHasChanged();
+    }
+
+    private async Task<GridData<ItemTypeViewModel>> FetchItemTypes(GridState<ItemTypeViewModel> state)
+    {
+        var typesResposne = await _httpClient.GetAsync("/api/item-type/paged");
+
+        if (!typesResposne.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return new();
+        }
+        
+        var types = await typesResposne.Content.ReadFromJsonAsync<PagedList<ItemTypeViewModel>>();
+        if (types is null)
+        {
+            Snackbar.Add("Ошибка при обработке данных");
+            return new();
+        }
+
+        if (types.Subset is null || types.PageSize == 0)
+        {
+            Snackbar.Add("Нет данных");
+            return new();
+        }
+
+        return new()
+        {
+            Items = types.Subset,
+            TotalItems = types.PageCount
+        };
+    }
+
+    private async Task AddType()
+    {
+        var createModel = new ItemTypeCreateModel()
+        {
+            Name = _newType
+        };
+        
+        var typesResposne = await _httpClient.PostAsJsonAsync("/api/item-type/", createModel);
+        
+        if (!typesResposne.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        Snackbar.Add($"Тип '{_newType}' добавлен успешно!");
+        _newType = string.Empty;
+        await _dataGrid.ReloadServerData();
+        StateHasChanged();
+    }
+
+    private async Task EditType(ItemTypeViewModel item)
+    {
+        var updateModel = new ItemTypeCreateModel()
+        {
+            Name = item.Name
+        };
+        
+        var typesResposne = await _httpClient.PutAsJsonAsync($"/api/item-type/{item.Id}", updateModel);
+        
+        if (!typesResposne.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        Snackbar.Add($"{item.Name} обновлен успешно!");
+        await _dataGrid.ReloadServerData();
+        StateHasChanged();
+    }
+    
+    private async Task DeleteType(ItemTypeViewModel item)
+    {
+        var dialogResult = await OpenDialogAsync(item.Name);
+        if (dialogResult != null && dialogResult.Canceled)
+        {
+            return;
+        }
+        
+        var typesResposne = await _httpClient.DeleteAsync($"/api/item-type/{item.Id}");
+        
+        if (!typesResposne.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        Snackbar.Add($"{item.Name} удален успешно!");
+        await _dataGrid.ReloadServerData();
+        StateHasChanged();
+    }
+    
+    private async Task<DialogResult?> OpenDialogAsync(string name)
+    {
+        var parameters = new DialogParameters
+        {
+            { "ContentText", $"Вы действительно хотите удалить тип {name} ?" },
+            { "ButtonText", "Удалить" },
+            { "Color", Color.Error }
+        };
+        
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true
+        };
+
+        var dialogReference = await DialogService.ShowAsync<ConfirmationDialog>("Удаление", parameters, options);
+        var dialogResult = await dialogReference.Result;
+
+        return dialogResult;
+    }
+}
