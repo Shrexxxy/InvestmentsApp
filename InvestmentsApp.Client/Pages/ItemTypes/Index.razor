@@ -4,6 +4,7 @@
 @using InvestmentsApp.Client.Models
 @using InvestmentsApp.Client.Models.ItemTypes
 @using InvestmentsApp.Client.Models.PagedList
+@using InvestmentsApp.Client.Models.Quality
 
 <PageTitle>Типы предметов</PageTitle>
 <MudText 
@@ -30,6 +31,8 @@
 
 
 <MudDataGrid
+    Dense
+    SortMode="SortMode.None"
     ReadOnly="false"
     EditMode="@DataGridEditMode.Form"
     EditTrigger="DataGridEditTrigger.Manual"
@@ -38,18 +41,20 @@
     CommittedItemChanges="@EditType"
     T="ItemTypeViewModel">
     <Columns>
+        <HierarchyColumn/>
         <PropertyColumn
+            Class="w-25"
             Title="Id"
             Editable="false"
             Property="x => x.Id">
         </PropertyColumn>
-        
+
         <PropertyColumn
             Editable="true"
             Title="Название"
             Property="x => x.Name">
         </PropertyColumn>
-        
+
         <TemplateColumn>
             <CellTemplate>
                 <MudStack
@@ -73,6 +78,11 @@
             </CellTemplate>
         </TemplateColumn>
     </Columns>
+    <ChildRowContent>
+        <Quality ItemTypeId="context.Item.Id">
+            
+        </Quality>
+    </ChildRowContent>
     <PagerContent>
         <MudDataGridPager></MudDataGridPager>
     </PagerContent>

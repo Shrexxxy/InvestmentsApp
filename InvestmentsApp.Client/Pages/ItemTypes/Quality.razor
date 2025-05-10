@@ -1,0 +1,199 @@
+@using InvestmentsApp.Client.Components
+@using InvestmentsApp.Client.Models.PagedList
+@using InvestmentsApp.Client.Models.Quality
+    
+    <MudStack Class="my-5" Row>
+        <MudTextField
+            T="string"
+            @bind-Value="@_newQuality"
+            Label="Введите название"
+            InputType="InputType.Text">
+        </MudTextField>
+
+        <MudButton
+            OnClick="AddQuality"
+            StartIcon="@Icons.Material.Outlined.Add">
+            Добавить
+        </MudButton>
+    </MudStack>
+
+    @if (_qualityList?.Count != 0)
+    {
+        <MudDataGrid
+            @ref="_dataGrid"
+            SortMode="SortMode.None"
+            T="QualityViewModel"
+            Items="_qualityList"
+            ReadOnly="false"
+            EditMode="@DataGridEditMode.Form"
+            EditTrigger="DataGridEditTrigger.Manual"
+            CommittedItemChanges="@EditQuality">
+            <Columns>
+                <PropertyColumn
+                    Class="w-25"
+                    Property="x => x.Id"
+                    Title="Id">
+                </PropertyColumn>
+                <PropertyColumn
+                    Class="w-75"
+                    Property="x => x.Name"
+                    Title="Название">
+                </PropertyColumn>
+                <TemplateColumn>
+                    <CellTemplate>
+                        <MudStack
+                            Justify="Justify.FlexEnd"
+                            Row>
+                            <MudTooltip Text="Редактировать">
+                                <MudIconButton
+                                    OnClick="@context.Actions.StartEditingItemAsync"
+                                    Icon="@Icons.Material.Outlined.Edit">
+                                </MudIconButton>
+                            </MudTooltip>
+
+                            <MudTooltip Text="Удалить">
+                                <MudIconButton
+                                    OnClick="() => DeleteQuality(context.Item!)"
+                                    Icon="@Icons.Material.Outlined.Delete">
+                                </MudIconButton>
+                            </MudTooltip>
+
+                        </MudStack>
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+        </MudDataGrid>
+    }
+    
+@code {
+    [Parameter] public Guid ItemTypeId { get; set; }
+    
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = null!;
+    [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private IDialogService DialogService { get; set; } = null!;
+    
+    private MudDataGrid<QualityViewModel> _dataGrid = new();
+    
+    private HttpClient _httpClient;
+    private List<QualityViewModel>? _qualityList = new ();
+    private string _newQuality;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
+        
+        await FetchQualityes();
+        
+        StateHasChanged();        
+        
+    }
+    
+    private async Task FetchQualityes()
+    {
+        var typesResposne = await _httpClient.GetAsync($"/api/quality/by-type-id/{ItemTypeId}");
+
+        if (!typesResposne.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        var qualitys = await typesResposne.Content.ReadFromJsonAsync<List<QualityViewModel>>();
+        if (qualitys is null)
+        {
+            Snackbar.Add("Ошибка при обработке данных");
+            return;
+        }
+
+        if (qualitys.Count == 0)
+        {
+            Snackbar.Add("Нет данных");
+            return;
+        }
+
+        _qualityList = qualitys;
+    }
+    
+    private async Task AddQuality()
+    {
+        var createModel = new QualityCreateModel()
+        {
+            Name = _newQuality,
+            ItemTypeId = ItemTypeId
+        };
+        
+        var qualityCreateResposne = await _httpClient.PostAsJsonAsync("/api/quality/", createModel);
+        
+        if (!qualityCreateResposne.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        Snackbar.Add($"Качество '{_newQuality}' добавлено успешно!");
+        _newQuality = string.Empty;
+        await FetchQualityes();
+        StateHasChanged();
+    }
+
+    private async Task EditQuality(QualityViewModel quality)
+    {
+        var updateModel = new QualityCreateModel()
+        {
+            Name = quality.Name
+        };
+        
+        var typesResposne = await _httpClient.PutAsJsonAsync($"/api/quality/{quality.Id}", updateModel);
+        
+        if (!typesResposne.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        Snackbar.Add($"{quality.Name} обновлен успешно!");
+        await _dataGrid.ReloadServerData();
+        StateHasChanged();
+    }
+    
+    private async Task DeleteQuality(QualityViewModel quality)
+    {
+        var dialogResult = await OpenDialogAsync(quality.Name);
+        if (dialogResult != null && dialogResult.Canceled)
+        {
+            return;
+        }
+        
+        var typesResposne = await _httpClient.DeleteAsync($"/api/quality/{quality.Id}");
+        
+        if (!typesResposne.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        Snackbar.Add($"{quality.Name} удален успешно!");
+        await FetchQualityes();
+        StateHasChanged();
+    }
+    
+    private async Task<DialogResult?> OpenDialogAsync(string name)
+    {
+        var parameters = new DialogParameters
+        {
+            { "ContentText", $"Вы действительно хотите удалить качество {name} ?" },
+            { "ButtonText", "Удалить" },
+            { "Color", Color.Error }
+        };
+        
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true
+        };
+
+        var dialogReference = await DialogService.ShowAsync<ConfirmationDialog>("Удаление", parameters, options);
+        var dialogResult = await dialogReference.Result;
+
+        return dialogResult;
+    }
+}
