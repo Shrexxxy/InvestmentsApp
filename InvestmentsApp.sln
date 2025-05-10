@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InvestmentsApp", "InvestmentsApp\InvestmentsApp.csproj", "{29AA7626-5B48-4EEC-8048-A07C4A3138D4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InvestmentsApp.Client", "InvestmentsApp.Client\InvestmentsApp.Client.csproj", "{E2EB6126-7E96-4D68-82E8-EC36CA289444}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{29AA7626-5B48-4EEC-8048-A07C4A3138D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{29AA7626-5B48-4EEC-8048-A07C4A3138D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{29AA7626-5B48-4EEC-8048-A07C4A3138D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{29AA7626-5B48-4EEC-8048-A07C4A3138D4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E2EB6126-7E96-4D68-82E8-EC36CA289444}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E2EB6126-7E96-4D68-82E8-EC36CA289444}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E2EB6126-7E96-4D68-82E8-EC36CA289444}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E2EB6126-7E96-4D68-82E8-EC36CA289444}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
