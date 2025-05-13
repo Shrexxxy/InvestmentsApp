@@ -1,6 +1,8 @@
 @page "/Items"
+@using InvestmentsApp.Client.Components
 @using InvestmentsApp.Client.Models.Item
 @using InvestmentsApp.Client.Models.PagedList
+@using InvestmentsApp.Client.Models.PriceHistory
 
 <MudButton
     Href="/Items/Create">
@@ -14,6 +16,7 @@
     ServerData="FetchItems"
     T="ItemViewModel">
     <Columns>
+        <HierarchyColumn/>
         <PropertyColumn
             Class="w-25"
             Title="Id"
@@ -26,17 +29,23 @@
             Title="Название"
             Property="x => x.Name">
         </PropertyColumn>
-        
+
         <PropertyColumn
             Editable="true"
             Title="Тип предмета"
-            Property="x => x.ItemType.Name">
+            Property="x => x.ItemTypeName">
+        </PropertyColumn>
+
+        <PropertyColumn
+            Editable="true"
+            Title="Качество"
+            Property="x => x.QualityName">
         </PropertyColumn>
         
         <PropertyColumn
             Editable="true"
-            Title="Качество"
-            Property="x => x.Quality!.Name">
+            Title="Цена"
+            Property="x => x.LastPrice">
         </PropertyColumn>
 
         <TemplateColumn>
@@ -50,10 +59,20 @@
                             Icon="@Icons.Material.Outlined.Edit">
                         </MudIconButton>
                     </MudTooltip>
+
+                    <MudTooltip Text="Установить текущую цену">
+                        <MudIconButton
+                            OnClick="() => SetNewPrice(context.Item.Id)"
+                            Icon="@Icons.Material.Filled.AttachMoney">
+                        </MudIconButton>
+                    </MudTooltip>
                 </MudStack>
             </CellTemplate>
         </TemplateColumn>
     </Columns>
+    <ChildRowContent>
+        <PriceHistory ItemId="context.Item.Id"></PriceHistory>
+    </ChildRowContent>
     <PagerContent>
         <MudDataGridPager></MudDataGridPager>
     </PagerContent>
@@ -71,6 +90,28 @@
     {
         _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
         
+        StateHasChanged();
+    }
+    
+    private async Task SetNewPrice(Guid id)
+    {
+        var dialogResult = await OpenDialogAsync();
+        
+        if (dialogResult is { Canceled : true } || dialogResult.Data is not decimal newPrice)
+        {
+            Snackbar.Add("Ошибка диалогового окна");
+            return;
+        }
+        
+        var newPriceResponse = await _httpClient.PostAsJsonAsync($"/api/item/{id}", new NewPriceRequest(newPrice));
+
+        if (!newPriceResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+
+        await _dataGrid.ReloadServerData();
         StateHasChanged();
     }
 
@@ -102,5 +143,25 @@
             Items = items.Subset,
             TotalItems = items.PageCount
         };
+    }
+    
+    private async Task<DialogResult?> OpenDialogAsync()
+    {
+        var parameters = new DialogParameters
+        {
+            { "ContentText", $"Введите новую цену" },
+            { "ButtonText", "Сохранить" },
+            { "Color", Color.Primary }
+        };
+        
+        var options = new DialogOptions
+        {
+            CloseOnEscapeKey = true
+        };
+
+        var dialogReference = await DialogService.ShowAsync<NewPriceDialog>("Изменение", parameters, options);
+        var dialogResult = await dialogReference.Result;
+
+        return dialogResult;
     }
 }

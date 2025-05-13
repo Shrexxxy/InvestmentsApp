@@ -8,8 +8,9 @@ public class ItemViewModel
     public string Name { get; set; }
     
     public Guid ItemTypeId { get; set; }
-    public ItemTypeViewModel ItemType { get; set; }
+    public string ItemTypeName { get; set; }
     
     public Guid? QualityId { get; set; }
-    public QualityViewModel? Quality { get; set; }
+    public string QualityName { get; set; }
+    public decimal? LastPrice { get; set; }
 }

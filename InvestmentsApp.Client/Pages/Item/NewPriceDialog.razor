@@ -1,0 +1,14 @@
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-2">
+            @ContentText
+        </MudText>
+
+        <MudTextField @bind-Value="NewPrice" Label="Новая цена" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentText="₽" />
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+        <MudButton Color="@Color" Variant="Variant.Filled" OnClick="Submit">@ButtonText</MudButton>
+    </DialogActions>
+</MudDialog>
