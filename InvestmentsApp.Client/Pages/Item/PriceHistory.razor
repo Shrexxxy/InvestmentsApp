@@ -1,0 +1,119 @@
+@using InvestmentsApp.Client.Models.Item
+@using InvestmentsApp.Client.Models.PagedList
+@using InvestmentsApp.Client.Models.PriceHistory
+<MudPaper Class="pa-4">
+    <MudText Typo="Typo.h6">История изменения цены</MudText>
+
+    @if (loading)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else if (_chartLabels.Length == 0)
+    {
+        <MudText>Нет данных для отображения.</MudText>
+    }
+    else
+    {
+        <MudChart 
+            ChartType="ChartType.Line"
+            ChartSeries="@_chartData"
+            XAxisLabels="@_chartLabels"
+            ChartOptions="chartOptions"
+            Width="100%"
+            Height="500px"/>
+    }
+    <MudDivider Class="my-2" />
+    
+    <MudRadioGroup
+        T="PeriodEnum"
+        ValueChanged="PeriodChanged">
+        <MudRadio Value="PeriodEnum.Day" Label="День" />
+        <MudRadio Value="PeriodEnum.Week" Label="Неделя" />
+        <MudRadio Value="PeriodEnum.Month" Label="Месяц" />
+    </MudRadioGroup>
+</MudPaper>
+
+@code {
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = null!;
+    [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private IDialogService DialogService { get; set; } = null!;
+    
+    [Parameter] public Guid ItemId { get; set; }
+
+    private HttpClient _httpClient = null!;
+    
+    private PeriodEnum _selectedPeriod = PeriodEnum.Week;
+    
+    private string[] _chartLabels;
+    private List<ChartSeries> _chartData = new ();
+    private ChartOptions chartOptions = new ChartOptions { LineStrokeWidth = 3 };
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
+
+        await FetchPriceHistory();
+        
+        StateHasChanged();
+    }
+
+    private async Task PeriodChanged(PeriodEnum period)
+    {
+        _selectedPeriod = period;
+        
+        await FetchPriceHistory();
+        
+        StateHasChanged();
+    }
+
+    private async Task FetchPriceHistory()
+    {
+        _chartData = new();
+        try
+        {
+            var priceResponse = await _httpClient.GetAsync($"/api/item/{ItemId}/price-history");
+
+            if (!priceResponse.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Ошибка Api");
+                return;
+            }
+
+            var prices = await priceResponse.Content.ReadFromJsonAsync<PagedList<PriceHistoryViewModel>>();
+            if (prices is null)
+            {
+                Snackbar.Add("Ошибка при обработке данных");
+                return;
+            }
+
+            if (prices.Subset is null || prices.PageSize == 0)
+            {
+                Snackbar.Add("Нет данных");
+                return;
+            }
+
+            var ordered = prices.Subset.OrderBy(x => x.Date).ToList();
+
+            _chartLabels = ordered.Select(x => x.Date.ToString("dd.MM.yyyy")).ToArray();
+            var priceValues = ordered.Select(x => (double)x.Price).ToArray();
+
+            var chartSeries = new ChartSeries
+            {
+                Name = "Цена",
+                Data = priceValues,
+                ShowDataMarkers = true
+            };
+
+            _chartData.Add(chartSeries);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Ошибка при загрузке данных: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}
