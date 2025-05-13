@@ -1,0 +1,291 @@
+@page "/Purchase/Create"
+
+@using InvestmentsApp.Client.Models
+@using InvestmentsApp.Client.Models.Item
+@using InvestmentsApp.Client.Models.PagedList
+@using InvestmentsApp.Client.Models.Purchase
+@using InvestmentsApp.Client.Models.Quality
+@using Microsoft.AspNetCore.WebUtilities
+
+<PageTitle>Добавить покупку</PageTitle>
+<MudText 
+    Typo="Typo.h5"
+    Class="mt-5"
+    Style="text-align: center;">
+    Добавить покупку
+</MudText>
+
+<MudElement 
+    Class="m-5 d-flex align-content-center align-items-center justify-content-center">
+    <MudPaper Class="w-50">
+        <MudForm>
+            <MudSelect
+                Class="m-3"
+                Clearable
+                T="ItemTypeViewModel"
+                Immediate
+                ValueChanged="HandleChangeSelectedItemType"
+                Label="Выберите тип предмета">
+                @foreach (var itemType in _itemTypeList)
+                {
+                    <MudSelectItem
+                        T="ItemTypeViewModel"
+                        Value="itemType">
+                        @itemType.Name
+                    </MudSelectItem>
+                }
+            </MudSelect>
+        
+            <MudSelect
+                Class="m-3"
+                Clearable
+                Immediate
+                Disabled="_qualityList.Count == 0"
+                ValueChanged="HandleChangeSelectedQuality"
+                T="QualityViewModel?"
+                Label="Выберите качество предмета">
+                @foreach (var quality in _qualityList)
+                {
+                    <MudSelectItem
+                        T="QualityViewModel?"
+                        Value="quality">
+                        @quality.Name
+                    </MudSelectItem>
+                }
+            </MudSelect>
+            
+            <MudSelect
+                Clearable
+                Class="m-3"
+                Immediate
+                Disabled="_selectedItemType is null"
+                @bind-Value="_selectedItem"
+                T="ItemViewModel?"
+                Label="Выберите предмет">
+                @foreach (var item in _itemList)
+                {
+                    <MudSelectItem
+                        T="ItemViewModel?"
+                        Value="item">
+                        @($"{item.Name} {item.Quality?.Name}")
+                    </MudSelectItem>
+                }
+            </MudSelect>
+            
+            <MudTextField
+                Clearable
+                Label="Введите цену за единицу"
+                Class="m-3"
+                @bind-Value="_model.PricePerUnit">
+            </MudTextField>
+            
+            <MudTextField
+                Clearable
+                Label="Введите количество"
+                Class="m-3"
+                @bind-Value="_model.Quantity">
+            </MudTextField>
+            
+            <MudText Class="m-3">@($"Итоговая сумма ~{_model.Quantity * _model.PricePerUnit} Руб.")</MudText>
+            
+            <MudStack Row Justify="Justify.FlexEnd">
+                <MudButton
+                    Class="my-2 mx-2"
+                    Color="Color.Primary"
+                    OnClick="HandleCreate">
+                    Добавить
+                </MudButton>
+            </MudStack>
+        </MudForm>
+    </MudPaper>
+</MudElement>
+
+@code {
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = null!;
+    [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private IDialogService DialogService { get; set; } = null!;
+    [Inject] public NavigationManager NavigationManager { get; set; } = null!;
+    
+    private HttpClient _httpClient = null!;
+    private MudDataGrid<PurchaseViewModel> _dataGrid = new();
+    private PurchaseCreateModel _model = new();
+    private List<ItemTypeViewModel> _itemTypeList = new();
+    private List<QualityViewModel> _qualityList = new ();
+    private List<ItemViewModel> _itemList = new();
+
+    private ItemTypeViewModel? _selectedItemType;
+    private QualityViewModel? _selectedQuality;
+    private ItemViewModel? _selectedItem;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
+        
+        await FetchItemTypes();
+        
+        StateHasChanged();
+    }
+    
+    private async Task<GridData<PurchaseViewModel>> FetchPurchases(GridState<PurchaseViewModel> state)
+    {
+        var purchaseResponse = await _httpClient.GetAsync("/api/purchase/paged");
+
+        if (!purchaseResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return new();
+        }
+        
+        var purchases = await purchaseResponse.Content.ReadFromJsonAsync<PagedList<PurchaseViewModel>>();
+        if (purchases is null)
+        {
+            Snackbar.Add("Ошибка при обработке данных");
+            return new();
+        }
+
+        if (purchases.Subset is null || purchases.PageSize == 0)
+        {
+            Snackbar.Add("Нет данных");
+            return new();
+        }
+
+        return new()
+        {
+            Items = purchases.Subset,
+            TotalItems = purchases.PageCount
+        };
+    }
+    
+    private async Task HandleChangeSelectedItemType(ItemTypeViewModel itemType)
+    {
+        _selectedItemType = itemType;
+        
+        FetchQualities(itemType.Id);
+        
+        FetchItems();
+        
+        StateHasChanged();
+    }
+    
+    private async Task FetchItemTypes()
+    {
+        var itemTypesResponse = await _httpClient.GetAsync("/api/item-type/paged");
+        
+        if (!itemTypesResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        var types = await itemTypesResponse.Content.ReadFromJsonAsync<PagedList<ItemTypeViewModel>>();
+        if (types is null)
+        {
+            Snackbar.Add("Ошибка при обработке данных");
+            return;
+        }
+
+        if (types.Subset is null || types.PageSize == 0)
+        {
+            Snackbar.Add("Нет данных");
+            return;
+        }
+
+        _itemTypeList = types.Subset;
+        StateHasChanged();
+    }
+    
+    private async Task FetchQualities(Guid itemTypeId)
+    {
+        var qualityResponse = await _httpClient.GetAsync($"/api/quality/by-type-id/{itemTypeId}");
+
+        if (!qualityResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        var qualities = await qualityResponse.Content.ReadFromJsonAsync<List<QualityViewModel>>();
+        if (qualities is null)
+        {
+            Snackbar.Add("Ошибка при обработке данных");
+            return;
+        }
+
+        if (qualities.Count == 0)
+        {
+            _qualityList = new();
+            Snackbar.Add("Нет данных");
+            return;
+        }
+
+        _qualityList = qualities;
+        
+        StateHasChanged();
+    }
+
+    private async Task FetchItems()
+    {
+        var queryParams = new Dictionary<string, string?>();
+
+        if (_selectedItemType is not null)
+        {
+            queryParams.Add("itemTypeId", _selectedItemType.Id.ToString());
+        }
+
+        if (_selectedQuality is not null)
+        {
+            queryParams.Add("qualityId", _selectedQuality.Id.ToString());
+        }
+        
+        var url = QueryHelpers.AddQueryString("/api/item/paged", queryParams);
+        var itemsResponse = await _httpClient.GetAsync(url);
+
+        if (!itemsResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+
+        var items = await itemsResponse.Content.ReadFromJsonAsync<PagedList<ItemViewModel>>();
+        if (items is null)
+        {
+            Snackbar.Add("Ошибка при обработке данных");
+            return;
+        }
+
+        if (items.Subset is null || items.PageSize == 0)
+        {
+            Snackbar.Add("Нет данных");
+            return;
+        }
+
+        _itemList = items.Subset;
+        
+        StateHasChanged();
+    }
+        
+    private async Task HandleChangeSelectedQuality(QualityViewModel quality)
+    {
+        _selectedQuality = quality;
+        
+        await FetchItems();
+        
+        StateHasChanged();
+    }
+    
+    private async Task HandleCreate()
+    {
+        _model.ItemId = _selectedItem.Id;
+        
+        var createPurchaseResponse = await _httpClient.PostAsJsonAsync("/api/purchase/", _model);
+        
+        if (!createPurchaseResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        Snackbar.Add($"Покупка {_selectedItem!.Name} {_selectedQuality?.Name} на сумму {_model.Quantity * _model.PricePerUnit} Руб. успешно добавлена!");
+        NavigationManager.NavigateTo("/purchase");
+    }
+}
