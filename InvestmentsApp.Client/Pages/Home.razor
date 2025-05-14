@@ -29,39 +29,54 @@
     </MudStack>
 </MudPaper>
 
-<MudPaper Class="p-4" Elevation="2">
-    <MudText Typo="Typo.h6" Class="mb-2">Распределение покупок по типу</MudText>
-
-    <MudChart
-        Width="400px"
-        Height="400px"
-        ChartType="ChartType.Pie" 
-        InputData="@_values"
-        InputLabels="@_labels"/>
-
-</MudPaper>
-
-<MudPaper Class="p-4 mt-4" Elevation="2">
-    <MudText Typo="Typo.h6" Class="mb-2">Инвентарь по типам предметов</MudText>
-
-    @foreach (var typeGroup in _inventoryByType)
-    {
-        <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mt-2 mb-1">
-            @typeGroup.ItemType
+<MudStack Row
+          Justify="Justify.SpaceBetween">
+    <MudPaper 
+        Class="p-4 w-25">
+        <MudText
+            Typo="Typo.h6"
+            Class="mb-2">
+            Распределение покупок по типу
         </MudText>
 
-        <MudTable Items="@typeGroup.Items" Dense="true" Hover="true">
-            <HeaderContent>
-                <MudTh>Название</MudTh>
-                <MudTh class="text-end">Количество</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>@context.ItemName</MudTd>
-                <MudTd class="text-end">@context.Quantity</MudTd>
-            </RowTemplate>
-        </MudTable>
-    }
-</MudPaper>
+        <MudChart
+            Height="400px"
+            ChartType="ChartType.Pie" 
+            InputData="@_values"
+            InputLabels="@_labels"/>
+    </MudPaper>
+
+    <MudPaper Class="p-4 w-75">
+        <MudText
+            Typo="Typo.h6"
+            Class="mb-2">
+            Инвентарь по типам предметов
+        </MudText>
+
+        @foreach (var typeGroup in _inventoryByType)
+        {
+            <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mt-2 mb-1">
+                @typeGroup.ItemType
+            </MudText>
+
+            <MudTable Items="@typeGroup.Items" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh Class="w-25">Название</MudTh>
+                    <MudTh Class="w-25">Количество</MudTh>
+                    <MudTh Class="w-25">Цена</MudTh>
+                    <MudTh Class="w-25">Сумма</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd Class="w-25">@context.ItemName</MudTd>
+                    <MudTd Class="w-25">@context.Quantity</MudTd>
+                    <MudTd Class="w-25">@context.LastPrice.ToString("0.##") ₽</MudTd>
+                    <MudTd Class="w-25">@context.TotalPrice.ToString("0.##") ₽</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+</MudStack>
+
 
 @code
 {

@@ -52,18 +52,24 @@
         <PropertyColumn
             Title="Цена за единицу"
             Property="x => x.PricePerUnit">
+            <CellTemplate>
+                @($"{context.Item.PricePerUnit} Руб.")
+            </CellTemplate>
         </PropertyColumn>
         
         <PropertyColumn
             Title="Сумма"
             Property="x => x.TotalPrice">
+            <CellTemplate>
+                @($"{context.Item.TotalPrice} Руб.")
+            </CellTemplate>
         </PropertyColumn>
         
         <PropertyColumn
             Title="Дата покупки"
             Property="x => x.PurchaseDate">
             <CellTemplate>
-                @context.Item.PurchaseDate.Date
+                @context.Item.PurchaseDate.ToShortDateString()
             </CellTemplate>
         </PropertyColumn>
     </Columns>
