@@ -1,59 +1,157 @@
 ﻿@page "/"
+@using InvestmentsApp.Client.Models.ItemTypes
 
-<PageTitle>Home</PageTitle>
+<MudPaper Class="p-4 mb-4" Elevation="2">
+    <MudStack Spacing="1">
+        <MudText Typo="Typo.h6" Color="Color.Primary">
+            Общая сумма вложений: @_totalAmount.ToString("N2") ₽
+        </MudText>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Hello, world!</MudText>
-<MudText Class="mb-8">Welcome to your new app, powered by MudBlazor and the .NET 9 Template!</MudText>
+        <MudText Typo="Typo.h6" Color="Color.Primary">
+            Текущая стоимость всех предметов: @_currentAmount.ToString("N2") ₽
+        </MudText>
 
-<MudAlert Severity="Severity.Normal" ContentAlignment="HorizontalAlignment.Start">
-    You can find documentation and examples on our website here:
-    <MudLink Href="https://mudblazor.com" Target="_blank" Typo="Typo.body2" Color="Color.Primary">
-        <b>www.mudblazor.com</b>
-    </MudLink>
-</MudAlert>
+        @{
+            var diff = _currentAmount - _totalAmount;
+            var percent = _totalAmount == 0 ? 0 : (diff / _totalAmount) * 100;
+            var isProfit = diff >= 0;
+            var color = isProfit ? Color.Success : Color.Error;
+            var sign = isProfit ? "+" : "";
+        }
 
-<br/>
-<MudText Typo="Typo.h5" GutterBottom="true">Interactivity in this Template</MudText>
-<br/>
-<MudText Typo="Typo.body2">
-    When you opt for the "Global" Interactivity Location, <br/>
-    the render modes are defined in App.razor and consequently apply to all child components.<br/>
-    In this case, providers are globally set in the MainLayout.<br/>
-    <br/>
-    On the other hand, if you choose the "Per page/component" Interactivity Location,<br/>
-    it is necessary to include the <br/>
-    <br/>
-    &lt;MudPopoverProvider /&gt; <br/>
-    &lt;MudDialogProvider /&gt; <br/>
-    &lt;MudSnackbarProvider /&gt; <br/>
-    <br/>
-    components on every interactive page.<br/>
-    <br/>
-    If a render mode is not specified for a page, it defaults to Server-Side Rendering (SSR),<br/>
-    similar to this page. While MudBlazor allows pages to be rendered in SSR,<br/>
-    please note that interactive features, such as buttons and dropdown menus, will not be functional.
-</MudText>
+        <MudText Typo="Typo.h6" Color="@color">
+            Фактическая разница: @($"{sign}{diff:N2} ₽")
+        </MudText>
 
-<br/>
-<MudText Typo="Typo.h5" GutterBottom="true">What's New in Blazor with the Release of .NET 9</MudText>
-<br/>
+        <MudText Typo="Typo.h6" Color="@color">
+            Процент изменения: @($"{sign}{percent:N2}%")
+        </MudText>
+    </MudStack>
+</MudPaper>
 
-<MudText Typo="Typo.h6" GutterBottom="true">Prerendering</MudText>
-<MudText Typo="Typo.body2" GutterBottom="true">
-    If you're exploring the features of .NET 9 Blazor,<br/> you might be pleasantly surprised to learn that each page is prerendered on the server,<br/> regardless of the selected render mode.<br/><br/>
-    This means that you'll need to inject all necessary services on the server,<br/> even when opting for the wasm (WebAssembly) render mode.<br/><br/>
-    This prerendering functionality is crucial to ensuring that WebAssembly mode feels fast and responsive,<br/> especially when it comes to initial page load times.<br/><br/>
-    For more information on how to detect prerendering and leverage the RenderContext, you can refer to the following link:
-    <MudLink Href="https://github.com/dotnet/aspnetcore/issues/51468#issuecomment-1783568121" Target="_blank" Typo="Typo.body2" Color="Color.Primary">
-        More details
-    </MudLink>
-</MudText>
+<MudPaper Class="p-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Распределение покупок по типу</MudText>
 
-<br/>
-<MudText Typo="Typo.h6" GutterBottom="true">InteractiveAuto</MudText>
-<MudText Typo="Typo.body2">
-    A discussion on how to achieve this can be found here:
-    <MudLink Href="https://github.com/dotnet/aspnetcore/issues/51468#issue-1950424116" Target="_blank" Typo="Typo.body2" Color="Color.Primary">
-        More details
-    </MudLink>
-</MudText>
+    <MudChart
+        Width="400px"
+        Height="400px"
+        ChartType="ChartType.Pie" 
+        InputData="@_values"
+        InputLabels="@_labels"/>
+
+</MudPaper>
+
+<MudPaper Class="p-4 mt-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-2">Инвентарь по типам предметов</MudText>
+
+    @foreach (var typeGroup in _inventoryByType)
+    {
+        <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mt-2 mb-1">
+            @typeGroup.ItemType
+        </MudText>
+
+        <MudTable Items="@typeGroup.Items" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Название</MudTh>
+                <MudTh class="text-end">Количество</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.ItemName</MudTd>
+                <MudTd class="text-end">@context.Quantity</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudPaper>
+
+@code
+{
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = null!;
+    [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private IDialogService DialogService { get; set; } = null!;
+
+    private decimal _totalAmount;
+    private decimal _currentAmount;
+    private List<ItemTypeInventoryDto> _inventoryByType = new();
+    
+    private string[] _labels = Array.Empty<string>();
+    private double[] _values = Array.Empty<double>();
+    
+    
+    private HttpClient _httpClient = null!;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
+
+        GetTotalAmount();
+        GetCurrentAmount();
+        GetPurchasedItemTypeStats();
+        GetInventorySummary();
+        
+        StateHasChanged();
+    }
+
+    private async Task GetTotalAmount()
+    {
+        var totalAmountResponse = await _httpClient.GetAsync("/api/purchase/total-amount");
+
+        if (!totalAmountResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        _totalAmount = await totalAmountResponse.Content.ReadFromJsonAsync<decimal>();
+
+        StateHasChanged();
+    }
+
+    private async Task GetCurrentAmount()
+    {
+        var totalAmountResponse = await _httpClient.GetAsync("/api/purchase/current-amount");
+
+        if (!totalAmountResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        _currentAmount = await totalAmountResponse.Content.ReadFromJsonAsync<decimal>();
+
+        StateHasChanged();
+    }
+    
+    private async Task GetPurchasedItemTypeStats()
+    {
+        var itemTypeStatsResponse = await _httpClient.GetAsync("/api/purchase/item-type-stats");
+
+        if (!itemTypeStatsResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return;
+        }
+        
+        var itemStats = await itemTypeStatsResponse.Content.ReadFromJsonAsync<List<ItemTypeStatDto>>();
+        
+        _labels = itemStats.Select(x => x.ItemType).ToArray();
+        _values = itemStats.Select(x => (double)x.Count).ToArray();
+        
+        StateHasChanged();
+    }
+    
+    private async Task GetInventorySummary()
+    {
+        var response = await _httpClient.GetAsync("/api/purchase/inventory-summary");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка при получении инвентаря", Severity.Error);
+            return;
+        }
+
+        var inventory = await response.Content.ReadFromJsonAsync<List<ItemTypeInventoryDto>>();
+        _inventoryByType = inventory ?? new();
+        
+        StateHasChanged();
+    }
+}
