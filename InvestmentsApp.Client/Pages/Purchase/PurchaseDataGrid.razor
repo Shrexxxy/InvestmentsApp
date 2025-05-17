@@ -1,0 +1,120 @@
+@using InvestmentsApp.Client.Models.PagedList
+@using InvestmentsApp.Client.Models.Purchase
+@using Microsoft.AspNetCore.WebUtilities
+<MudDataGrid
+    Dense
+    SortMode="SortMode.None"
+    @ref="_dataGrid"
+    ServerData="FetchPurchases"
+    T="PurchaseViewModel">
+    <Columns>
+        <TemplateColumn Title="Id">
+            <CellTemplate>
+                <MudTooltip Text="Показать Id">
+                    <MudIconButton
+                        OnClick="() => ShowId(context.Item.Id)"
+                        Icon="@Icons.Material.Outlined.Shower">
+                    </MudIconButton>
+                </MudTooltip>
+            </CellTemplate>
+        </TemplateColumn>
+        <PropertyColumn
+            Title="Предмет"
+            Property="x => x.ItemId">
+            <CellTemplate>
+                @($"{context.Item.ItemTypeName} {context.Item.ItemName} {context.Item.QualityName}")
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn
+            Title="Количество"
+            Property="x => x.Quantity">
+        </PropertyColumn>
+
+        <PropertyColumn
+            Title="Цена за единицу"
+            Property="x => x.PricePerUnit">
+            <CellTemplate>
+                @($"{context.Item.PricePerUnit} Руб.")
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn
+            Title="Сумма"
+            Property="x => x.TotalPrice">
+            <CellTemplate>
+                @($"{context.Item.TotalPrice} Руб.")
+            </CellTemplate>
+        </PropertyColumn>
+
+        <PropertyColumn
+            Title="Дата покупки"
+            Property="x => x.PurchaseDate">
+            <CellTemplate>
+                @context.Item.PurchaseDate.ToShortDateString()
+            </CellTemplate>
+        </PropertyColumn>
+    </Columns>
+    <PagerContent>
+        <MudDataGridPager></MudDataGridPager>
+    </PagerContent>
+</MudDataGrid>
+
+@code {
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = null!;
+    [Inject] private ISnackbar Snackbar { get; set; } = null!;
+    [Inject] private IDialogService DialogService { get; set; } = null!;
+
+    private HttpClient _httpClient = null!;
+    private MudDataGrid<PurchaseViewModel> _dataGrid = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
+        
+        StateHasChanged();
+    }
+    
+    private async Task<GridData<PurchaseViewModel>> FetchPurchases(GridState<PurchaseViewModel> state)
+    {
+        var queryParams = new Dictionary<string, string?>();
+        
+        queryParams.Add("pageIndex", state.Page.ToString());
+        queryParams.Add("pageSize", state.PageSize.ToString());
+        
+        var url = QueryHelpers.AddQueryString("/api/purchase/paged", queryParams);
+        
+        var purchaseResponse = await _httpClient.GetAsync(url);
+
+        if (!purchaseResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return new();
+        }
+        
+        var purchases = await purchaseResponse.Content.ReadFromJsonAsync<PagedList<PurchaseViewModel>>();
+        if (purchases is null)
+        {
+            Snackbar.Add("Ошибка при обработке данных");
+            return new();
+        }
+
+        if (purchases.Subset is null || purchases.PageSize == 0)
+        {
+            Snackbar.Add("Нет данных");
+            return new();
+        }
+
+        return new()
+        {
+            Items = purchases.Subset,
+            TotalItems = purchases.TotalItemCount
+        };
+    }
+
+    private async Task ShowId(Guid id)
+    {
+        var parameters = new DialogParameters { ["Id"] = id };
+        await DialogService.ShowMessageBox("Идентификатор", $"Id: {id}");
+    }
+}
