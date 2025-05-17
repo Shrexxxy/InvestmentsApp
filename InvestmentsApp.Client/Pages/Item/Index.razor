@@ -12,6 +12,7 @@
 
 <MudDataGrid
     Dense
+    Bordered
     SortMode="SortMode.None"
     @ref="_dataGrid"
     ServerData="FetchItems"
@@ -155,7 +156,7 @@
         return new()
         {
             Items = items.Subset,
-            TotalItems = items.PageCount
+            TotalItems = items.TotalItemCount
         };
     }
     
