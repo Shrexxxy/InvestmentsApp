@@ -54,28 +54,30 @@
             Class="mb-2">
             Инвентарь по типам предметов
         </MudText>
-
+        <MudExpansionPanels Class="p-0" Dense Gutters>
         @foreach (var typeGroup in _inventoryByType)
         {
-            <MudText Typo="Typo.subtitle1" Color="Color.Primary" Class="mt-2 mb-1">
-                @typeGroup.ItemType
-            </MudText>
-
-            <MudTable Items="@typeGroup.Items" Dense="true" Hover="true">
-                <HeaderContent>
-                    <MudTh Class="w-25">Название</MudTh>
-                    <MudTh Class="w-25">Количество</MudTh>
-                    <MudTh Class="w-25">Цена</MudTh>
-                    <MudTh Class="w-25">Сумма</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd Class="w-25">@context.ItemName</MudTd>
-                    <MudTd Class="w-25">@context.Quantity</MudTd>
-                    <MudTd Class="w-25">@context.LastPrice.ToString("0.##") ₽</MudTd>
-                    <MudTd Class="w-25">@context.TotalPrice.ToString("0.##") ₽</MudTd>
-                </RowTemplate>
-            </MudTable>
+                <MudExpansionPanel Style="padding: -14px" Text="@typeGroup.ItemType">
+                    <MudDataGrid
+                        Outlined="false"
+                        Bordered
+                        T="ItemInventoryDto"
+                        Items="@typeGroup.Items">
+                        <Columns>
+                            <PropertyColumn Title="Название" Property="x=>x.ItemName"></PropertyColumn>
+                            <PropertyColumn Title="Количество" Property="x=>x.Quantity"></PropertyColumn>
+                            
+                            <PropertyColumn Title="Цена" Property="x => x.LastPrice">
+                                <CellTemplate>@($"{context.Item.LastPrice:0.##} ₽")</CellTemplate>
+                            </PropertyColumn>
+                            <PropertyColumn Title="Сумма" Property="x => x.TotalPrice">
+                                <CellTemplate>@($"{context.Item.TotalPrice:0.##} ₽")</CellTemplate>
+                            </PropertyColumn>
+                        </Columns>
+                    </MudDataGrid>
+                </MudExpansionPanel>
         }
+        </MudExpansionPanels>
     </MudPaper>
 </MudStack>
 

@@ -54,6 +54,9 @@
             Editable="true"
             Title="Цена"
             Property="x => x.LastPrice">
+            <CellTemplate>
+                @($"{context.Item.LastPrice} ₽")
+            </CellTemplate>
         </PropertyColumn>
 
         <TemplateColumn>

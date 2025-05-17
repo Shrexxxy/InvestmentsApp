@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.WebUtilities
 <MudDataGrid
     Dense
+    Bordered
     SortMode="SortMode.None"
     @ref="_dataGrid"
     ServerData="FetchPurchases"
@@ -35,7 +36,7 @@
             Title="Цена за единицу"
             Property="x => x.PricePerUnit">
             <CellTemplate>
-                @($"{context.Item.PricePerUnit} Руб.")
+                @($"{context.Item.PricePerUnit} ₽")
             </CellTemplate>
         </PropertyColumn>
 
@@ -43,9 +44,37 @@
             Title="Сумма"
             Property="x => x.TotalPrice">
             <CellTemplate>
-                @($"{context.Item.TotalPrice} Руб.")
+                @($"{context.Item.TotalPrice} ₽")
             </CellTemplate>
         </PropertyColumn>
+        
+        <PropertyColumn
+            Title="Текущая цена за единицу"
+            Property="x=>x.CurrentPricePerUnit">
+            <CellTemplate>
+                @($"{context.Item.CurrentPricePerUnit} ₽")
+            </CellTemplate>
+        </PropertyColumn>
+        
+        <TemplateColumn Title="Текущая цена">
+            <CellTemplate>
+                @($"{context.Item.CurrentTotalPrice} ₽")
+            </CellTemplate>
+        </TemplateColumn>
+        
+        <TemplateColumn Title="Изменения в цене">
+            <CellTemplate>
+                @{
+                    var diff = context.Item.PriceDifference;
+                    var diffPercent = context.Item.PriceDifferencePercent;
+                    var color = diff > 0 ? "green" : diff < 0 ? "red" : "black";
+                    var sign = diff > 0 ? "+" : "";
+                }
+                <span style="color:@color">
+                    @($"{sign}{diff:F2} / {diff*context.Item.Quantity} ₽ ({sign}{diffPercent:F1}%)")
+                </span>
+            </CellTemplate>
+        </TemplateColumn>
 
         <PropertyColumn
             Title="Дата покупки"

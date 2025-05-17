@@ -13,4 +13,8 @@ public class PurchaseViewModel
     public decimal PricePerUnit { get; set; }
     public decimal TotalPrice { get; set; }
     public DateTime PurchaseDate { get; set; }
+    public decimal CurrentPricePerUnit { get; set; }
+    public decimal CurrentTotalPrice { get; set; }
+    public decimal PriceDifference { get; set; }
+    public decimal PriceDifferencePercent { get; set; }
 }

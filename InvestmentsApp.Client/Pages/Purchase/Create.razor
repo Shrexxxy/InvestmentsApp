@@ -86,7 +86,7 @@
                 @bind-Value="_model.Quantity">
             </MudTextField>
             
-            <MudText Class="m-3">@($"Итоговая сумма ~{_model.Quantity * _model.PricePerUnit} Руб.")</MudText>
+            <MudText Class="m-3">@($"Итоговая сумма ~{_model.Quantity * _model.PricePerUnit} ₽")</MudText>
             
             <MudStack Row Justify="Justify.FlexEnd">
                 <MudButton
@@ -285,7 +285,7 @@
             return;
         }
         
-        Snackbar.Add($"Покупка {_selectedItem!.Name} {_selectedQuality?.Name} на сумму {_model.Quantity * _model.PricePerUnit} Руб. успешно добавлена!");
+        Snackbar.Add($"Покупка {_selectedItem!.Name} {_selectedQuality?.Name} на сумму {_model.Quantity * _model.PricePerUnit} ₽ успешно добавлена!");
         NavigationManager.NavigateTo("/purchase");
     }
 }
