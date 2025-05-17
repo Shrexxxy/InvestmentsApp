@@ -9,7 +9,7 @@ public class ItemViewModel
     
     public Guid ItemTypeId { get; set; }
     public string ItemTypeName { get; set; }
-    
+    public string? NameOnMarket { get; set; }
     public Guid? QualityId { get; set; }
     public string QualityName { get; set; }
     public decimal? LastPrice { get; set; }

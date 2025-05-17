@@ -3,6 +3,7 @@
 @using InvestmentsApp.Client.Models.Item
 @using InvestmentsApp.Client.Models.PagedList
 @using InvestmentsApp.Client.Models.PriceHistory
+@using Microsoft.AspNetCore.WebUtilities
 
 <MudButton
     Href="/Items/Create">
@@ -44,6 +45,12 @@
         
         <PropertyColumn
             Editable="true"
+            Title="Имя на маркете"
+            Property="x => x.NameOnMarket">
+        </PropertyColumn>
+        
+        <PropertyColumn
+            Editable="true"
             Title="Цена"
             Property="x => x.LastPrice">
         </PropertyColumn>
@@ -74,7 +81,7 @@
         <PriceHistory ItemId="context.Item.Id"></PriceHistory>
     </ChildRowContent>
     <PagerContent>
-        <MudDataGridPager></MudDataGridPager>
+        <MudDataGridPager/>
     </PagerContent>
 </MudDataGrid>
 
@@ -117,7 +124,14 @@
 
     private async Task<GridData<ItemViewModel>> FetchItems(GridState<ItemViewModel> state)
     {
-        var itemsResponse = await _httpClient.GetAsync("/api/item/paged");
+        var queryParams = new Dictionary<string, string?>();
+        
+        queryParams.Add("pageIndex", state.Page.ToString());
+        queryParams.Add("pageSize", state.PageSize.ToString());
+        
+        var url = QueryHelpers.AddQueryString("/api/item/paged", queryParams);
+        
+        var itemsResponse = await _httpClient.GetAsync(url);
 
         if (!itemsResponse.IsSuccessStatusCode)
         {
