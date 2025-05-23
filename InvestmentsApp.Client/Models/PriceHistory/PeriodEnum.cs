@@ -1,9 +1,9 @@
 namespace InvestmentsApp.Client.Models.PriceHistory;
 
-public enum PeriodEnum
+public enum PriceHistoryPeriod
 {
-    Day,
     Week,
     Month,
+    ThreeMonth,
     Year
 }

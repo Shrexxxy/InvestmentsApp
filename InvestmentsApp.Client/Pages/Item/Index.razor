@@ -1,30 +1,65 @@
 @page "/Items"
-@using InvestmentsApp.Client.Components
+@using InvestmentsApp.Client.Models
 @using InvestmentsApp.Client.Models.Item
 @using InvestmentsApp.Client.Models.PagedList
 @using InvestmentsApp.Client.Models.PriceHistory
+@using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.AspNetCore.WebUtilities
+@implements IAsyncDisposable 
 
-<MudButton
-    Href="/Items/Create">
-    Добавить
-</MudButton>
+<MudStack
+    Justify="Justify.FlexEnd"
+    Class="my-5" Row>
+    
+    @if (_showProgress)
+    {
+        <MudProgressLinear Value="@_percent" Color="Color.Info" BufferValue="@_percent" Buffer="true" Style="height: 20px"/>
+        <MudText Typo="Typo.caption">Обновляется: @_currentItem (@_percent%)</MudText>
+    }
+    
+    @if (_showSuccessMessage)
+    {
+        <MudAlert Severity="Severity.Success" Elevation="2" Variant="Variant.Filled">
+            Всё заебись! Спасибо, что дождались обновления цен.
+        </MudAlert>
+    }
+    
+    <MudButton
+        OnClick="RefreshAllPrice"
+        StartIcon="@Icons.Material.Outlined.Refresh">
+        Обновить все цены
+    </MudButton>
+    
+    <MudButton
+        Href="/Items/Create"
+        StartIcon="@Icons.Material.Outlined.Add">
+        Добавить
+    </MudButton>
+</MudStack>
 
 <MudDataGrid
     Dense
     Bordered
+    ReadOnly="false"
     SortMode="SortMode.None"
     @ref="_dataGrid"
     ServerData="FetchItems"
+    EditMode="@DataGridEditMode.Form"
+    EditTrigger="DataGridEditTrigger.Manual"
+    CommittedItemChanges="UpdateItem"
     T="ItemViewModel">
     <Columns>
         <HierarchyColumn/>
-        <PropertyColumn
-            Class="w-25"
-            Title="Id"
-            Editable="false"
-            Property="x => x.Id">
-        </PropertyColumn>
+        <TemplateColumn Title="Id">
+            <CellTemplate>
+                <MudTooltip Text="Показать Id">
+                    <MudIconButton
+                        OnClick="() => ShowId(context.Item.Id)"
+                        Icon="@Icons.Material.Outlined.Shower">
+                    </MudIconButton>
+                </MudTooltip>
+            </CellTemplate>
+        </TemplateColumn>
 
         <PropertyColumn
             Editable="true"
@@ -33,25 +68,27 @@
         </PropertyColumn>
 
         <PropertyColumn
-            Editable="true"
+            Editable="false"
             Title="Тип предмета"
             Property="x => x.ItemTypeName">
         </PropertyColumn>
 
         <PropertyColumn
-            Editable="true"
+            Required="false"
+            Editable="false"
             Title="Качество"
             Property="x => x.QualityName">
         </PropertyColumn>
         
         <PropertyColumn
+            Required="false"
             Editable="true"
             Title="Имя на маркете"
             Property="x => x.NameOnMarket">
         </PropertyColumn>
         
         <PropertyColumn
-            Editable="true"
+            Editable="false"
             Title="Цена"
             Property="x => x.LastPrice">
             <CellTemplate>
@@ -93,13 +130,66 @@
     [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = null!;
     [Inject] private ISnackbar Snackbar { get; set; } = null!;
     [Inject] private IDialogService DialogService { get; set; } = null!;
-
+    
     private HttpClient _httpClient = null!;
     private MudDataGrid<ItemViewModel> _dataGrid = new();
+    
+    
+    private HubConnection? _hubConnection;
+    private double _percent = 0;
+    private string _currentItem = "";
+    private bool _showProgress = false;
+    
+    private bool _showSuccessMessage = false;
+    private CancellationTokenSource? _successMessageCts;
+    
     
     protected override async Task OnInitializedAsync()
     {
         _httpClient = HttpClientFactory.CreateClient("InvestmentBackendConfig");
+        
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl("http://localhost:5555/hubs/price-update")
+            .WithAutomaticReconnect()
+            .Build();
+        
+        _hubConnection.On<UpdateProgressModel>("UpdateProgress", async message =>
+        {
+            _percent = message.Percent;
+            _currentItem = message.Item;
+            _showProgress = true;
+
+            if (_percent >= 100)
+            {
+                _showProgress = false;
+                _showSuccessMessage = true;
+
+                StateHasChanged();
+
+                _successMessageCts?.Cancel();
+                _successMessageCts = new CancellationTokenSource();
+                var token = _successMessageCts.Token;
+
+                try
+                {
+                    await _dataGrid.ReloadServerData();
+                    await Task.Delay(5000, token);
+                    _showSuccessMessage = false;
+                }
+                catch (TaskCanceledException)
+                {
+                    // Игнорируем отмену
+                }
+
+                InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                InvokeAsync(StateHasChanged);
+            }
+        });
+        
+        await _hubConnection.StartAsync();
         
         StateHasChanged();
     }
@@ -114,16 +204,21 @@
             return;
         }
         
-        var newPriceResponse = await _httpClient.PostAsJsonAsync($"/api/item/{id}", new NewPriceRequest(newPrice));
-
-        if (!newPriceResponse.IsSuccessStatusCode)
+        try
         {
-            Snackbar.Add("Ошибка Api");
-            return;
+            var newPriceResponse = await _httpClient.PostAsJsonAsync($"/api/item/{id}", new NewPriceRequest(newPrice));
+
+            if (!newPriceResponse.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Ошибка Api");
+            }
+        }
+        finally
+        {       
+            await _dataGrid.ReloadServerData();
+            StateHasChanged();
         }
 
-        await _dataGrid.ReloadServerData();
-        StateHasChanged();
     }
 
     private async Task<GridData<ItemViewModel>> FetchItems(GridState<ItemViewModel> state)
@@ -182,4 +277,81 @@
 
         return dialogResult;
     }
+
+    private async Task UpdateItem(ItemViewModel itemViewModel)
+    {
+        var isItemExistOnMarket = await TryFindItemOnMarket(itemViewModel.NameOnMarket);
+        if (!isItemExistOnMarket)
+        {
+            Snackbar.Add("Не удалось найти предмет на маркете");
+            return;
+        }
+        
+        var createModel = new ItemCreateModel()
+        {
+            ItemTypeId = itemViewModel.ItemTypeId,
+            MarketName = itemViewModel.NameOnMarket,
+            Name = itemViewModel.Name,
+            QualityId = itemViewModel.QualityId
+        };
+
+        try
+        {
+            var newPriceResponse = await _httpClient.PutAsJsonAsync($"/api/item/{itemViewModel.Id}", createModel);
+
+            if (!newPriceResponse.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Ошибка Api");
+            }
+        }
+        finally
+        {
+            await _dataGrid.ReloadServerData();
+            StateHasChanged();
+        }
+
+    }
+    
+    private async Task<bool> TryFindItemOnMarket(string marketName)
+    {
+        var queryParams = new Dictionary<string, string?>();
+        
+        queryParams.Add("query", marketName);
+        var url = QueryHelpers.AddQueryString("/api/market/", queryParams);
+        var marketResponse = await _httpClient.GetAsync(url);
+
+        if (!marketResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return false;
+        }
+
+        var result = await marketResponse.Content.ReadFromJsonAsync<bool>();
+        return result;
+    }
+
+    private async Task RefreshAllPrice()
+    {
+        var marketResponse = await _httpClient.PostAsync("/api/item/refresh-price", null);
+
+        if (!marketResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+        }
+    }
+    
+    private async Task ShowId(Guid id)
+    {
+        var parameters = new DialogParameters { ["Id"] = id };
+        await DialogService.ShowMessageBox("Идентификатор", $"Id: {id}");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+
 }

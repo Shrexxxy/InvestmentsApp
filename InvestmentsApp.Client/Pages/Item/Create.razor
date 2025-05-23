@@ -3,6 +3,7 @@
 @using InvestmentsApp.Client.Models.Item
 @using InvestmentsApp.Client.Models.PagedList
 @using InvestmentsApp.Client.Models.Quality
+@using Microsoft.AspNetCore.WebUtilities
 
 <MudElement 
     Class="m-5 d-flex align-content-center align-items-center justify-content-center">
@@ -12,6 +13,12 @@
             Label="Введите название предмета"
             Class="m-3"
             @bind-Value="_itemCreateModel.Name">
+        </MudTextField>
+        
+        <MudTextField
+            Label="Введите название предмета на маркете"
+            Class="m-3"
+            @bind-Value="_itemCreateModel.MarketName">
         </MudTextField>
     
         <MudSelect
@@ -145,6 +152,13 @@
 
     private async Task HandleCreate()
     {
+        var isItemExistOnMarket = await TryFindItemOnMarket();
+        if (!isItemExistOnMarket)
+        {
+            Snackbar.Add("Не удалось найти предмет на маркете");
+            return;
+        }
+        
         var typesResposne = await _httpClient.PostAsJsonAsync("/api/item/", _itemCreateModel);
         
         if (!typesResposne.IsSuccessStatusCode)
@@ -155,6 +169,24 @@
         
         Snackbar.Add($"Тип '{_itemCreateModel.Name}' добавлен успешно!");
         NavigationManager.NavigateTo("/items");
+    }
+
+    private async Task<bool> TryFindItemOnMarket()
+    {
+        var queryParams = new Dictionary<string, string?>();
+        
+        queryParams.Add("query", _itemCreateModel.MarketName);
+        var url = QueryHelpers.AddQueryString("/api/market/", queryParams);
+        var marketResponse = await _httpClient.GetAsync(url);
+
+        if (!marketResponse.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Ошибка Api");
+            return false;
+        }
+
+        var result = await marketResponse.Content.ReadFromJsonAsync<bool>();
+        return result;
     }
 
 }

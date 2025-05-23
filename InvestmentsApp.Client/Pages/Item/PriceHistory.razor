@@ -1,3 +1,4 @@
+@using System.Globalization
 @using InvestmentsApp.Client.Models.Item
 @using InvestmentsApp.Client.Models.PagedList
 @using InvestmentsApp.Client.Models.PriceHistory
@@ -19,17 +20,19 @@
             ChartSeries="@_chartData"
             XAxisLabels="@_chartLabels"
             ChartOptions="chartOptions"
+            AxisChartOptions="_axisChartOptions"
             Width="100%"
             Height="500px"/>
     }
     <MudDivider Class="my-2" />
     
     <MudRadioGroup
-        T="PeriodEnum"
+        T="PriceHistoryPeriod"
         ValueChanged="PeriodChanged">
-        <MudRadio Value="PeriodEnum.Day" Label="День" />
-        <MudRadio Value="PeriodEnum.Week" Label="Неделя" />
-        <MudRadio Value="PeriodEnum.Month" Label="Месяц" />
+        <MudRadio Value="PriceHistoryPeriod.Week" Label="Неделя" />
+        <MudRadio Value="PriceHistoryPeriod.Month"  Label="Месяц" />
+        <MudRadio Value="PriceHistoryPeriod.ThreeMonth" Label="Три месяца" />
+        <MudRadio Value="PriceHistoryPeriod.Year" Label="Год" />
     </MudRadioGroup>
 </MudPaper>
 
@@ -42,11 +45,20 @@
 
     private HttpClient _httpClient = null!;
     
-    private PeriodEnum _selectedPeriod = PeriodEnum.Week;
+    private PriceHistoryPeriod _selectedPeriod = PriceHistoryPeriod.Month;
     
     private string[] _chartLabels;
     private List<ChartSeries> _chartData = new ();
-    private ChartOptions chartOptions = new ChartOptions { LineStrokeWidth = 3 };
+    private AxisChartOptions _axisChartOptions = new AxisChartOptions() { MatchBoundsToSize = true};
+    private ChartOptions chartOptions = new ChartOptions
+    {
+        YAxisLines = true,
+        XAxisLines = true,
+        LineStrokeWidth = 3,
+        YAxisRequireZeroPoint = true,
+        YAxisTicks = 5,
+        InterpolationOption = InterpolationOption.NaturalSpline
+    };
     private bool loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -58,7 +70,7 @@
         StateHasChanged();
     }
 
-    private async Task PeriodChanged(PeriodEnum period)
+    private async Task PeriodChanged(PriceHistoryPeriod period)
     {
         _selectedPeriod = period;
         
@@ -72,7 +84,7 @@
         _chartData = new();
         try
         {
-            var priceResponse = await _httpClient.GetAsync($"/api/item/{ItemId}/price-history");
+            var priceResponse = await _httpClient.GetAsync($"/api/item/{ItemId}/price-history?period={_selectedPeriod}");
 
             if (!priceResponse.IsSuccessStatusCode)
             {
@@ -80,22 +92,29 @@
                 return;
             }
 
-            var prices = await priceResponse.Content.ReadFromJsonAsync<PagedList<PriceHistoryViewModel>>();
+            var prices = await priceResponse.Content.ReadFromJsonAsync<List<PriceHistoryViewModel>>();
             if (prices is null)
             {
                 Snackbar.Add("Ошибка при обработке данных");
                 return;
             }
 
-            if (prices.Subset is null || prices.PageSize == 0)
+            if (prices.Count == 0)
             {
                 Snackbar.Add("Нет данных");
                 return;
             }
 
-            var ordered = prices.Subset.OrderBy(x => x.Date).ToList();
+            var ordered = prices.OrderBy(x => x.Date).ToList();
 
-            _chartLabels = ordered.Select(x => x.Date.ToString("dd.MM.yyyy")).ToArray();
+            // ВАЖНО
+            // Если точек меньше 4, то интерполяция 'NaturalSpline' выдает ошибку //
+            if (ordered.Count < 4)
+            {
+                chartOptions.InterpolationOption = InterpolationOption.Straight;
+            }
+            _chartLabels = ordered.Select(x => x.Date.ToString("d MMM", new CultureInfo("ru-RU"))).ToArray();
+
             var priceValues = ordered.Select(x => (double)x.Price).ToArray();
 
             var chartSeries = new ChartSeries
